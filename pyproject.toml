@@ -1,0 +1,10 @@
+[project]
+name = "taskboard"
+version = "0.1.0"
+requires-python = ">=3.9"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+    "scheduler: Tests related to the scheduling algorithm"
+]

@@ -1,0 +1,61 @@
+import json
+from datetime import datetime, time
+from pathlib import Path
+from typing import List
+
+from taskboard.models.task import Task
+
+DATA_PATH = Path(__file__).parent / "tasks.json"
+
+
+def _serialize_task(task: Task) -> dict:
+    return {
+        "id": task.id,
+        "title": task.title,
+        "duration_minutes": task.duration_minutes,
+        "priority": task.priority,
+        "earliest_start_time": task.earliest_start_time.isoformat()
+        if task.earliest_start_time
+        else None,
+        "latest_end_time": task.latest_end_time.isoformat()
+        if task.latest_end_time
+        else None,
+        "flexible": task.flexible,
+        "is_completed": task.is_completed,
+        "description": task.description,
+        "deadline": task.deadline.isoformat() if task.deadline else None,
+        "energy_level": task.energy_level,
+    }
+
+
+def _deserialize_task(data: dict) -> Task:
+    return Task(
+        id=data["id"],
+        title=data["title"],
+        duration_minutes=data["duration_minutes"],
+        priority=data["priority"],
+        earliest_start_time=time.fromisoformat(data["earliest_start_time"])
+        if data["earliest_start_time"]
+        else None,
+        latest_end_time=time.fromisoformat(data["latest_end_time"])
+        if data["latest_end_time"]
+        else None,
+        flexible=data["flexible"],
+        is_completed=data.get("is_completed", False),
+        description=data.get("description"),
+        deadline=datetime.fromisoformat(data["deadline"]) if data["deadline"] else None,
+        energy_level=data.get("energy_level", 2),
+    )
+
+
+def load_tasks() -> List[Task]:
+    if not DATA_PATH.exists():
+        return []
+    with open(DATA_PATH, "r") as f:
+        data = json.load(f)
+    return [_deserialize_task(item) for item in data]
+
+
+def save_tasks(tasks: List[Task]):
+    with open(DATA_PATH, "w") as f:
+        json.dump([_serialize_task(task) for task in tasks], f, indent=2)
