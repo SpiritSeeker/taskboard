@@ -25,7 +25,7 @@ def main():
     parser.add_argument(
         "--end",
         type=parse_time_string,
-        default="17:00",
+        default="22:00",
         help="End time for scheduling (default: 22:00)",
     )
     parser.add_argument(
