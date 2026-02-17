@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import List, Optional, Tuple
 
 
@@ -14,6 +14,7 @@ class Task:
     flexible: bool
     is_completed: bool = False
     description: Optional[str] = None
+    scheduled_date: Optional[date] = None
     deadline: Optional[datetime] = None
     energy_level: int = 2  # 1 (low) to 3 (high)
     work_sessions: List[Tuple[datetime, datetime]] = field(default_factory=list)

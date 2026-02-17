@@ -13,11 +13,20 @@ def generate_schedule(
     scheduled_blocks: List[ScheduledBlock] = []
     unscheduled_tasks: List[Task] = []
 
+    today_date = day_start.date()
+
     # Initial free interval
     free_intervals: List[FreeInverval] = [(day_start, day_end)]
 
     # Filter incomplete tasks
-    tasks = [task for task in tasks if not task.is_completed]
+    tasks = [
+        task
+        for task in tasks
+        if (
+            not task.is_completed
+            and (task.scheduled_date is None or task.scheduled_date <= today_date)
+        )
+    ]
 
     # Sort tasks
     sorted_tasks = sorted(

@@ -1,5 +1,5 @@
 import uuid
-from datetime import time
+from datetime import date, time
 
 from taskboard.models.task import Task
 from taskboard.storage.repository import load_tasks, save_tasks
@@ -15,12 +15,17 @@ def main():
     latest_end_str = input("Enter latest end time (HH:MM) or leave blank: ")
     flexible_str = input("Is the task flexible? (y/n): ")
     description = input("Enter task description: ")
+    scheduled_input = input("Enter scheduled date (YYYY-MM-DD) or leave blank: ")
 
     earliest_start_time = (
         time.fromisoformat(earliest_start_str) if earliest_start_str else None
     )
     latest_end_time = time.fromisoformat(latest_end_str) if latest_end_str else None
     flexible = flexible_str.lower() == "y"
+    if scheduled_input:
+        scheduled_date = date.fromisoformat(scheduled_input)
+    else:
+        scheduled_date = None
 
     task = Task(
         id=int(uuid.uuid4()),
@@ -31,6 +36,7 @@ def main():
         latest_end_time=latest_end_time,
         flexible=flexible,
         description=description,
+        scheduled_date=scheduled_date,
     )
 
     tasks.append(task)

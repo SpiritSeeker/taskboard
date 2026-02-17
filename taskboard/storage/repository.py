@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, time
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import List
 
@@ -23,6 +23,9 @@ def _serialize_task(task: Task) -> dict:
         "flexible": task.flexible,
         "is_completed": task.is_completed,
         "description": task.description,
+        "scheduled_date": task.scheduled_date.isoformat()
+        if task.scheduled_date
+        else None,
         "deadline": task.deadline.isoformat() if task.deadline else None,
         "energy_level": task.energy_level,
         "work_sessions": [
@@ -49,6 +52,9 @@ def _deserialize_task(data: dict) -> Task:
         flexible=data["flexible"],
         is_completed=data.get("is_completed", False),
         description=data.get("description"),
+        scheduled_date=date.fromisoformat(data["scheduled_date"])
+        if data.get("scheduled_date")
+        else None,
         deadline=datetime.fromisoformat(data["deadline"]) if data["deadline"] else None,
         energy_level=data.get("energy_level", 2),
         work_sessions=[
