@@ -22,7 +22,8 @@ def main():
 
     print("\nSelect a task to start:\n")
     for i, task in enumerate(available_tasks, start=1):
-        print(f"{i}. {task.title}")
+        date_str = f"({task.scheduled_date.isoformat()})" if task.scheduled_date else ""
+        print(f"{i}. {task.title} {date_str}")
 
     choice = input("\nEnter the number of the task to start: ")
 
