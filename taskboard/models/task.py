@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, time
-from typing import Optional
+from typing import List, Optional, Tuple
 
 
 @dataclass
@@ -16,3 +16,5 @@ class Task:
     description: Optional[str] = None
     deadline: Optional[datetime] = None
     energy_level: int = 2  # 1 (low) to 3 (high)
+    work_sessions: List[Tuple[datetime, datetime]] = field(default_factory=list)
+    active_session_start: Optional[datetime] = None

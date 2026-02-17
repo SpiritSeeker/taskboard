@@ -25,6 +25,12 @@ def _serialize_task(task: Task) -> dict:
         "description": task.description,
         "deadline": task.deadline.isoformat() if task.deadline else None,
         "energy_level": task.energy_level,
+        "work_sessions": [
+            (start.isoformat(), end.isoformat()) for start, end in task.work_sessions
+        ],
+        "active_session_start": (
+            task.active_session_start.isoformat() if task.active_session_start else None
+        ),
     }
 
 
@@ -45,6 +51,15 @@ def _deserialize_task(data: dict) -> Task:
         description=data.get("description"),
         deadline=datetime.fromisoformat(data["deadline"]) if data["deadline"] else None,
         energy_level=data.get("energy_level", 2),
+        work_sessions=[
+            (datetime.fromisoformat(start), datetime.fromisoformat(end))
+            for start, end in data.get("work_sessions", [])
+        ],
+        active_session_start=(
+            datetime.fromisoformat(data["active_session_start"])
+            if data.get("active_session_start")
+            else None
+        ),
     )
 
 
