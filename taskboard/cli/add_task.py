@@ -2,7 +2,7 @@ import uuid
 from datetime import date, time
 
 from taskboard.models.task import Task
-from taskboard.storage.repository import load_tasks, save_tasks
+from taskboard.storage.tasks_repository import load_tasks, save_tasks
 
 
 def main():

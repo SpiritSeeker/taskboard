@@ -1,5 +1,6 @@
-# Don't include tasks.json
+# Don't include .json repository files
 tasks.json
+events.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

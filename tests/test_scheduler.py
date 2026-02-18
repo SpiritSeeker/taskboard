@@ -34,7 +34,7 @@ def make_task(
 def test_single_task_fits():
     task = make_task()
 
-    schedule, unscheduled = generate_schedule([task], make_day(9), make_day(17))
+    schedule, unscheduled = generate_schedule([task], [], make_day(9), make_day(17))
 
     assert len(schedule) == 1
     assert len(unscheduled) == 0
@@ -51,7 +51,7 @@ def test_respects_time_window():
         latest_end_time=time(15, 0),
     )
 
-    schedule, _ = generate_schedule([task], make_day(9), make_day(17))
+    schedule, _ = generate_schedule([task], [], make_day(9), make_day(17))
 
     block = schedule[0]
     assert block.start_time.hour >= 13
@@ -62,7 +62,9 @@ def test_respects_time_window():
 def test_overflow_unscheduled():
     long_task = make_task(duration_minutes=600)  # 10 hours
 
-    schedule, unscheduled = generate_schedule([long_task], make_day(9), make_day(17))
+    schedule, unscheduled = generate_schedule(
+        [long_task], [], make_day(9), make_day(17)
+    )
 
     assert len(schedule) == 0
     assert len(unscheduled) == 1
@@ -75,12 +77,13 @@ def test_priority_ordering():
 
     schedule, _ = generate_schedule(
         [low, high],
+        [],
         day_start=make_day(9),
         day_end=make_day(17),
     )
 
-    assert schedule[0].task == high
-    assert schedule[1].task == low
+    assert schedule[0].id == high.id
+    assert schedule[1].id == low.id
 
 
 @pytest.mark.scheduler
@@ -90,6 +93,7 @@ def test_no_overlap():
 
     schedule, _ = generate_schedule(
         [t1, t2],
+        [],
         day_start=make_day(9),
         day_end=make_day(17),
     )
@@ -104,6 +108,7 @@ def test_buffer_between_tasks():
 
     schedule, _ = generate_schedule(
         [t1, t2],
+        [],
         day_start=make_day(9),
         day_end=make_day(17),
         buffer_minutes=10,

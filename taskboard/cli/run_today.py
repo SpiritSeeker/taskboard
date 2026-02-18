@@ -3,7 +3,8 @@ from datetime import datetime, time, timedelta
 
 from taskboard.core.scheduler import generate_schedule
 from taskboard.core.timeline import ScheduledBlock
-from taskboard.storage.repository import load_tasks
+from taskboard.storage.events_repository import load_events
+from taskboard.storage.tasks_repository import load_tasks
 
 
 def parse_time_string(time_str: str) -> time:
@@ -52,6 +53,24 @@ def main():
         return
 
     tasks = load_tasks()
+    events = load_events()
+    events = [e for e in events if e.start.date() == today]
+    event_blocks = []
+    now = datetime.now()
+    for e in events:
+        title = f"[EVENT] {e.title}"
+
+        if e.start <= now <= e.end:
+            title = f"[EVENT - ONGOING] {e.title}"
+
+        event_blocks.append(
+            ScheduledBlock(
+                id=e.id,
+                title=title,
+                start_time=e.start,
+                end_time=e.end,
+            )
+        )
 
     active_tasks = [task for task in tasks if task.active_session_start is not None]
     active_block = None
@@ -76,7 +95,7 @@ def main():
             day_start = max(day_start, active_task_end_estimated)
 
         active_block = ScheduledBlock(
-            task=active_task,
+            id=active_task.id,
             title=active_task.title + " (IN PROGRESS)",
             start_time=active_task.active_session_start,
             end_time=active_task_end_estimated,
@@ -86,16 +105,18 @@ def main():
         tasks = [t for t in tasks if t.id != active_task.id]
 
     schedule, unscheduled = generate_schedule(
-        tasks, day_start, day_end, buffer_minutes=args.buffer
+        tasks, events, day_start, day_end, buffer_minutes=args.buffer
     )
     if active_block is not None:
         schedule.insert(0, active_block)
     schedule.sort(key=lambda block: block.start_time)
+    all_blocks = schedule + event_blocks
+    all_blocks.sort(key=lambda block: block.start_time)
 
     print("\n=== Today's Schedule ===\n")
 
     total_minutes = 0
-    for block in schedule:
+    for block in all_blocks:
         duration = (block.end_time - block.start_time).total_seconds() / 60
         total_minutes += duration
 

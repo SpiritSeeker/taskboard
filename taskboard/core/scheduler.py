@@ -2,13 +2,18 @@ from datetime import datetime, timedelta
 from typing import List, Tuple
 
 from taskboard.core.timeline import ScheduledBlock
+from taskboard.models.event import Event
 from taskboard.models.task import Task
 
 FreeInverval = Tuple[datetime, datetime]
 
 
 def generate_schedule(
-    tasks: List[Task], day_start: datetime, day_end: datetime, buffer_minutes: int = 0
+    tasks: List[Task],
+    events: List[Event],
+    day_start: datetime,
+    day_end: datetime,
+    buffer_minutes: int = 0,
 ) -> Tuple[List[ScheduledBlock], List[Task]]:
     scheduled_blocks: List[ScheduledBlock] = []
     unscheduled_tasks: List[Task] = []
@@ -17,6 +22,33 @@ def generate_schedule(
 
     # Initial free interval
     free_intervals: List[FreeInverval] = [(day_start, day_end)]
+
+    buffer = timedelta(minutes=buffer_minutes)
+
+    # Block events and update free intervals
+    events_sorted = sorted(events, key=lambda e: e.start)
+    for event in events_sorted:
+        if event.start.date() != today_date:
+            continue
+
+        new_intervals = []
+        for free_start, free_end in free_intervals:
+            # No overlap
+            if event.end <= free_start or event.start >= free_end:
+                new_intervals.append((free_start, free_end))
+                continue
+
+            # Before event
+            buffered_start = event.start - buffer
+            if free_start < buffered_start:
+                new_intervals.append((free_start, buffered_start))
+
+            # After event
+            buffered_end = event.end + buffer
+            if buffered_end < free_end:
+                new_intervals.append((buffered_end, free_end))
+
+        free_intervals = sorted(new_intervals, key=lambda x: x[0])
 
     # Filter incomplete tasks
     tasks = [
@@ -38,8 +70,6 @@ def generate_schedule(
             -t.duration_minutes,
         ),
     )
-
-    buffer = timedelta(minutes=buffer_minutes)
 
     for task in sorted_tasks:
         duration = timedelta(minutes=task.duration_minutes)
@@ -82,7 +112,7 @@ def generate_schedule(
 
                 scheduled_blocks.append(
                     ScheduledBlock(
-                        task=task,
+                        id=task.id,
                         title=task.title,
                         start_time=start_time,
                         end_time=end_time,

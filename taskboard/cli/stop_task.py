@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from taskboard.storage.repository import load_tasks, save_tasks
+from taskboard.storage.tasks_repository import load_tasks, save_tasks
 
 
 def main():
