@@ -25,7 +25,7 @@ def main():
     if scheduled_input:
         scheduled_date = date.fromisoformat(scheduled_input)
     else:
-        scheduled_date = None
+        scheduled_date = date.today()
 
     task = Task(
         id=int(uuid.uuid4()),

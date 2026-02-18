@@ -25,7 +25,7 @@ def _serialize_task(task: Task) -> dict:
         "description": task.description,
         "scheduled_date": task.scheduled_date.isoformat()
         if task.scheduled_date
-        else None,
+        else date.today().isoformat(),
         "deadline": task.deadline.isoformat() if task.deadline else None,
         "energy_level": task.energy_level,
         "work_sessions": [
@@ -54,7 +54,7 @@ def _deserialize_task(data: dict) -> Task:
         description=data.get("description"),
         scheduled_date=date.fromisoformat(data["scheduled_date"])
         if data.get("scheduled_date")
-        else None,
+        else date.today(),
         deadline=datetime.fromisoformat(data["deadline"]) if data["deadline"] else None,
         energy_level=data.get("energy_level", 2),
         work_sessions=[
@@ -78,5 +78,7 @@ def load_tasks() -> List[Task]:
 
 
 def save_tasks(tasks: List[Task]):
+    # Sort tasks by scheduled date and priority before saving
+    tasks.sort(key=lambda t: (t.scheduled_date or date.today(), t.priority))
     with open(DATA_PATH, "w") as f:
         json.dump([_serialize_task(task) for task in tasks], f, indent=2)
