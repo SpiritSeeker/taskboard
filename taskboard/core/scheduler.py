@@ -56,7 +56,8 @@ def generate_schedule(
                 )
             if task.latest_end_time:
                 window_end = min(
-                    free_end, datetime.combine(day_start.date(), task.latest_end_time)
+                    free_end - buffer,
+                    datetime.combine(day_start.date(), task.latest_end_time),
                 )
 
             if window_end <= window_start:
