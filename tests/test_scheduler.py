@@ -70,8 +70,8 @@ def test_overflow_unscheduled():
 
 @pytest.mark.scheduler
 def test_priority_ordering():
-    high = make_task(id=1, priority=3)
-    low = make_task(id=2, priority=1)
+    high = make_task(id=1, priority=1)
+    low = make_task(id=2, priority=3)
 
     schedule, _ = generate_schedule(
         [low, high],

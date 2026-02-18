@@ -33,7 +33,7 @@ def generate_schedule(
         tasks,
         key=lambda t: (
             t.flexible,
-            -t.priority,
+            t.priority,
             t.latest_end_time or datetime.min.time(),
             -t.duration_minutes,
         ),
