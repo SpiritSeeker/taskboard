@@ -34,6 +34,7 @@ def _serialize_task(task: Task) -> dict:
         "active_session_start": (
             task.active_session_start.isoformat() if task.active_session_start else None
         ),
+        "depends_on": task.depends_on,
     }
 
 
@@ -66,6 +67,7 @@ def _deserialize_task(data: dict) -> Task:
             if data.get("active_session_start")
             else None
         ),
+        depends_on=data.get("depends_on", []),
     )
 
 

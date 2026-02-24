@@ -19,3 +19,6 @@ class Task:
     energy_level: int = 2  # 1 (low) to 3 (high)
     work_sessions: List[Tuple[datetime, datetime]] = field(default_factory=list)
     active_session_start: Optional[datetime] = None
+    depends_on: List[int] = field(
+        default_factory=list
+    )  # List of task IDs this task depends on
