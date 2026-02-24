@@ -17,8 +17,46 @@ def generate_schedule(
 ) -> Tuple[List[ScheduledBlock], List[Task]]:
     scheduled_blocks: List[ScheduledBlock] = []
     unscheduled_tasks: List[Task] = []
+    active_block = None
 
     today_date = day_start.date()
+
+    # Detect active task
+    active_tasks = [
+        task
+        for task in tasks
+        if getattr(task, "active_session_start", None) is not None
+    ]
+    if active_tasks:
+        active_task = active_tasks[0]
+        assert active_task.active_session_start is not None
+        active_task_end_estimated = active_task.active_session_start + timedelta(
+            minutes=active_task.duration_minutes
+        )
+        # If the active task end time is in the past, the active task end time is now
+        if active_task_end_estimated < datetime.now():
+            active_task_end_estimated = datetime.now()
+
+        # Bump the active_task_end_estimated to next multiple of buffer_minutes if buffer is set
+        if buffer_minutes > 0:
+            buffer_td = timedelta(minutes=buffer_minutes)
+            active_task_end_estimated += (
+                buffer_td - (active_task_end_estimated - datetime.min) % buffer_td
+            ) % buffer_td
+            day_start = max(day_start, active_task_end_estimated + buffer_td)
+        else:
+            day_start = max(day_start, active_task_end_estimated)
+
+        active_block = ScheduledBlock(
+            id=active_task.id,
+            title=active_task.title + " (IN PROGRESS)",
+            start_time=active_task.active_session_start,
+            end_time=active_task_end_estimated,
+        )
+        scheduled_blocks.append(active_block)
+
+        # Remove active task from scheduling pool
+        tasks = [t for t in tasks if t.id != active_task.id]
 
     # Initial free interval
     free_intervals: List[FreeInverval] = [(day_start, day_end)]
