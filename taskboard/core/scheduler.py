@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from taskboard.core.timeline import ScheduledBlock
 from taskboard.models.event import Event
@@ -17,8 +17,53 @@ def generate_schedule(
 ) -> Tuple[List[ScheduledBlock], List[Task]]:
     scheduled_blocks: List[ScheduledBlock] = []
     unscheduled_tasks: List[Task] = []
+    active_block = None
+
+    task_map = {t.id: t for t in tasks}
+    scheduled_task_ids: Set[int] = set()
+    scheduled_blocks_map: Dict[int, ScheduledBlock] = {}
+    remaining_tasks = tasks.copy()
 
     today_date = day_start.date()
+
+    # Detect active task
+    active_tasks = [
+        task
+        for task in tasks
+        if getattr(task, "active_session_start", None) is not None
+    ]
+    if active_tasks:
+        active_task = active_tasks[0]
+        assert active_task.active_session_start is not None
+        active_task_end_estimated = active_task.active_session_start + timedelta(
+            minutes=active_task.duration_minutes
+        )
+        # If the active task end time is in the past, the active task end time is now
+        if active_task_end_estimated < datetime.now():
+            active_task_end_estimated = datetime.now()
+
+        # Bump the active_task_end_estimated to next multiple of buffer_minutes if buffer is set
+        if buffer_minutes > 0:
+            buffer_td = timedelta(minutes=buffer_minutes)
+            active_task_end_estimated += (
+                buffer_td - (active_task_end_estimated - datetime.min) % buffer_td
+            ) % buffer_td
+            day_start = max(day_start, active_task_end_estimated + buffer_td)
+        else:
+            day_start = max(day_start, active_task_end_estimated)
+
+        active_block = ScheduledBlock(
+            id=active_task.id,
+            title=active_task.title + " (IN PROGRESS)",
+            start_time=active_task.active_session_start,
+            end_time=active_task_end_estimated,
+        )
+        scheduled_blocks.append(active_block)
+
+        # Remove active task from scheduling pool
+        remaining_tasks = [t for t in remaining_tasks if t.id != active_task.id]
+        scheduled_task_ids.add(active_task.id)
+        scheduled_blocks_map[active_task.id] = active_block
 
     # Initial free interval
     free_intervals: List[FreeInverval] = [(day_start, day_end)]
@@ -50,39 +95,68 @@ def generate_schedule(
 
         free_intervals = sorted(new_intervals, key=lambda x: x[0])
 
-    # Filter incomplete tasks
-    tasks = [
-        task
-        for task in tasks
-        if (
-            not task.is_completed
-            and (task.scheduled_date is None or task.scheduled_date <= today_date)
-        )
+    # Filter eligible tasks
+    remaining_tasks = [
+        t
+        for t in remaining_tasks
+        if not t.is_completed
+        and (t.scheduled_date is None or t.scheduled_date <= today_date)
     ]
+    while remaining_tasks:
+        eligible_tasks: List[Task] = []
 
-    # Sort tasks
-    sorted_tasks = sorted(
-        tasks,
-        key=lambda t: (
-            t.flexible,
-            t.priority,
-            t.latest_end_time or datetime.min.time(),
-            -t.duration_minutes,
-        ),
-    )
+        for task in remaining_tasks:
+            deps = task.depends_on
+            blocked = False
+            for dep_id in deps:
+                dep_task = task_map.get(dep_id)
 
-    for task in sorted_tasks:
+                if not dep_task:
+                    continue
+
+                if not dep_task.is_completed and dep_id not in scheduled_task_ids:
+                    blocked = True
+                    break
+
+            if not blocked:
+                eligible_tasks.append(task)
+
+        if not eligible_tasks:
+            unscheduled_tasks.extend(remaining_tasks)
+            break
+
+        sorted_tasks = sorted(
+            eligible_tasks,
+            key=lambda t: (
+                t.flexible,
+                t.priority,
+                t.latest_end_time or datetime.min.time(),
+                -t.duration_minutes,
+            ),
+        )
+
+        task = sorted_tasks[0]
         duration = timedelta(minutes=task.duration_minutes)
         placed = False
+
+        effective_task_start = (
+            datetime.combine(day_start.date(), task.earliest_start_time)
+            if task.earliest_start_time
+            else day_start
+        )
+        for dep_id in task.depends_on:
+            if dep_id in scheduled_blocks_map:
+                dep_block = scheduled_blocks_map[dep_id]
+                effective_task_start = max(effective_task_start, dep_block.end_time)
 
         for i, (free_start, free_end) in enumerate(free_intervals):
             window_start = free_start
             window_end = free_end
 
-            if task.earliest_start_time:
+            if effective_task_start:
                 window_start = max(
                     free_start,
-                    datetime.combine(day_start.date(), task.earliest_start_time),
+                    effective_task_start,
                 )
             if task.latest_end_time:
                 window_end = min(
@@ -110,14 +184,16 @@ def generate_schedule(
                 if not task_placable:
                     continue
 
-                scheduled_blocks.append(
-                    ScheduledBlock(
-                        id=task.id,
-                        title=task.title,
-                        start_time=start_time,
-                        end_time=end_time,
-                    )
+                placed_block = ScheduledBlock(
+                    id=task.id,
+                    title=task.title,
+                    start_time=start_time,
+                    end_time=end_time,
                 )
+                scheduled_blocks.append(placed_block)
+                scheduled_task_ids.add(task.id)
+                scheduled_blocks_map[task.id] = placed_block
+                remaining_tasks.remove(task)
 
                 # Update free intervals
                 new_intervals = []
@@ -145,6 +221,7 @@ def generate_schedule(
 
         if not placed:
             unscheduled_tasks.append(task)
+            remaining_tasks.remove(task)
 
     # Sort scheduled blocks by start time
     scheduled_blocks.sort(key=lambda block: block.start_time)

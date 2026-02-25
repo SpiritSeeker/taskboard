@@ -27,6 +27,30 @@ def main():
     else:
         scheduled_date = date.today()
 
+    incomplete_tasks = [t for t in tasks if not t.is_completed]
+    depends_on_ids = []
+    if incomplete_tasks:
+        choice = input("Does this task depend on another task? (y/n): ")
+        if choice.lower() == "y":
+            print(
+                "\nSelect dependencies by number (comma separated), or blank to skip:\n"
+            )
+
+            for idx, task in enumerate(incomplete_tasks, 1):
+                print(f"{idx}. {task.title}")
+
+            selected = input("\nYour choice: ").strip()
+            if selected:
+                try:
+                    selected_indices = [int(x.strip()) for x in selected.split(",")]
+                    for idx in selected_indices:
+                        if 1 <= idx <= len(incomplete_tasks):
+                            depends_on_ids.append(incomplete_tasks[idx - 1].id)
+                        else:
+                            print(f"Invalid selection: {idx}. Skipping.")
+                except (ValueError, IndexError):
+                    print("Invalid selection. Skipping dependencies.")
+
     task = Task(
         id=int(uuid.uuid4()),
         title=title,
@@ -37,6 +61,7 @@ def main():
         flexible=flexible,
         description=description,
         scheduled_date=scheduled_date,
+        depends_on=depends_on_ids,
     )
 
     tasks.append(task)
