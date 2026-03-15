@@ -156,3 +156,44 @@ def test_circular_dependency():
 
     assert not scheduled
     assert len(unscheduled) == 2
+
+
+def test_active_task_shifts_schedule_start():
+    active_task = make_task(1, duration=60)
+    active_task.active_session_start = make_day(9)
+
+    task_b = make_task(2, duration=30)
+
+    scheduled, _ = generate_schedule(
+        [active_task, task_b],
+        [],
+        make_day(9),
+        datetime.now() + timedelta(hours=1),
+        buffer_minutes=0,
+    )
+
+    block_b = next(b for b in scheduled if b.id == 2)
+    block_a = next(b for b in scheduled if b.id == 1)
+
+    assert block_b.start_time >= block_a.end_time
+
+
+def test_scheduler_does_not_abort_interval_search():
+    a = make_task(
+        1,
+        duration=60,
+        priority=1,
+        earliest=make_day(10).time(),
+        latest=make_day(11).time(),
+    )
+    b = make_task(2, duration=60)
+
+    scheduled, _ = generate_schedule(
+        [a, b],
+        [],
+        make_day(9),
+        make_day(17),
+        buffer_minutes=15,
+    )
+
+    assert {b.id for b in scheduled} == {1, 2}
