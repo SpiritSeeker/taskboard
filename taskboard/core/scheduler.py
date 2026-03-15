@@ -36,19 +36,22 @@ def generate_schedule(
         buffer_minutes,
     )
 
-    # Initial free interval
+    # Create free intervals for the day and block out events
     free_intervals: List[FreeInterval] = [(day_start, day_end)]
     buffer = timedelta(minutes=buffer_minutes)
     free_intervals = _apply_event_blocking(free_intervals, events, today_date, buffer)
 
-    # Filter eligible tasks
+    # Filter incomplete tasks that are scheduled for today or have no scheduled date
     remaining_tasks = [
         t
         for t in remaining_tasks
         if not t.is_completed
         and (t.scheduled_date is None or t.scheduled_date <= today_date)
     ]
+
+    # Main scheduling loop
     while remaining_tasks:
+        # Get eligible tasks that are not blocked by dependencies
         eligible_tasks = _get_eligible_tasks(
             remaining_tasks, task_map, scheduled_task_ids
         )
@@ -57,6 +60,7 @@ def generate_schedule(
             unscheduled_tasks.extend(remaining_tasks)
             break
 
+        # Sort eligible tasks by flexible, priority, latest_end_time, and duration
         sorted_tasks = sorted(
             eligible_tasks,
             key=lambda t: (
@@ -67,6 +71,7 @@ def generate_schedule(
             ),
         )
 
+        # Try to place the highest priority eligible task
         task = sorted_tasks[0]
         placed_block = _try_place_task(
             task,
@@ -76,6 +81,8 @@ def generate_schedule(
             day_start,
             buffer,
         )
+
+        # If the task was placed, add it to the schedule and mark it as scheduled
         if placed_block:
             scheduled_blocks.append(placed_block)
             scheduled_task_ids.add(task.id)
