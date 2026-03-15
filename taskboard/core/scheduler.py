@@ -26,7 +26,7 @@ def generate_schedule(
     today_date = day_start.date()
 
     # Remove active task from scheduling pool and add it as a scheduled block
-    _handle_active_task(
+    day_start = _handle_active_task(
         tasks,
         scheduled_blocks,
         scheduled_blocks_map,
@@ -246,7 +246,7 @@ def _handle_active_task(
     remaining_tasks: List[Task],
     day_start: datetime,
     buffer_minutes: int,
-) -> None:
+) -> datetime:
     # Detect active task
     active_tasks = [
         task
@@ -285,3 +285,5 @@ def _handle_active_task(
         remaining_tasks.remove(active_task)
         scheduled_task_ids.add(active_task.id)
         scheduled_blocks_map[active_task.id] = active_block
+
+    return day_start
