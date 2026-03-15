@@ -67,33 +67,8 @@ def generate_schedule(
 
     # Initial free interval
     free_intervals: List[FreeInverval] = [(day_start, day_end)]
-
     buffer = timedelta(minutes=buffer_minutes)
-
-    # Block events and update free intervals
-    events_sorted = sorted(events, key=lambda e: e.start)
-    for event in events_sorted:
-        if event.start.date() != today_date:
-            continue
-
-        new_intervals = []
-        for free_start, free_end in free_intervals:
-            # No overlap
-            if event.end <= free_start or event.start >= free_end:
-                new_intervals.append((free_start, free_end))
-                continue
-
-            # Before event
-            buffered_start = event.start - buffer
-            if free_start < buffered_start:
-                new_intervals.append((free_start, buffered_start))
-
-            # After event
-            buffered_end = event.end + buffer
-            if buffered_end < free_end:
-                new_intervals.append((buffered_end, free_end))
-
-        free_intervals = sorted(new_intervals, key=lambda x: x[0])
+    free_intervals = _apply_event_blocking(free_intervals, events, today_date, buffer)
 
     # Filter eligible tasks
     remaining_tasks = [
@@ -236,3 +211,36 @@ def _get_eligible_tasks(
         if not blocked:
             eligible_tasks.append(task)
     return eligible_tasks
+
+
+def _apply_event_blocking(
+    free_intervals: List[FreeInverval],
+    events: List[Event],
+    today_date,
+    buffer: timedelta,
+) -> List[FreeInverval]:
+    # Block events and update free intervals
+    events_sorted = sorted(events, key=lambda e: e.start)
+    for event in events_sorted:
+        if event.start.date() != today_date:
+            continue
+
+        new_intervals = []
+        for free_start, free_end in free_intervals:
+            # No overlap
+            if event.end <= free_start or event.start >= free_end:
+                new_intervals.append((free_start, free_end))
+                continue
+
+            # Before event
+            buffered_start = event.start - buffer
+            if free_start < buffered_start:
+                new_intervals.append((free_start, buffered_start))
+
+            # After event
+            buffered_end = event.end + buffer
+            if buffered_end < free_end:
+                new_intervals.append((buffered_end, free_end))
+
+        free_intervals = sorted(new_intervals, key=lambda x: x[0])
+    return free_intervals
