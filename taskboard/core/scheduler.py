@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from taskboard.core.timeline import ScheduledBlock
 from taskboard.models.event import Event
 from taskboard.models.task import Task
 
-FreeInverval = Tuple[datetime, datetime]
+FreeInterval = Tuple[datetime, datetime]
 
 
 def generate_schedule(
@@ -66,7 +66,7 @@ def generate_schedule(
         scheduled_blocks_map[active_task.id] = active_block
 
     # Initial free interval
-    free_intervals: List[FreeInverval] = [(day_start, day_end)]
+    free_intervals: List[FreeInterval] = [(day_start, day_end)]
     buffer = timedelta(minutes=buffer_minutes)
     free_intervals = _apply_event_blocking(free_intervals, events, today_date, buffer)
 
@@ -97,92 +97,22 @@ def generate_schedule(
         )
 
         task = sorted_tasks[0]
-        duration = timedelta(minutes=task.duration_minutes)
-        placed = False
-
-        effective_task_start = (
-            datetime.combine(day_start.date(), task.earliest_start_time)
-            if task.earliest_start_time
-            else day_start
+        placed_block = _try_place_task(
+            task,
+            free_intervals,
+            scheduled_blocks,
+            scheduled_blocks_map,
+            day_start,
+            buffer,
         )
-        for dep_id in task.depends_on:
-            if dep_id in scheduled_blocks_map:
-                dep_block = scheduled_blocks_map[dep_id]
-                effective_task_start = max(effective_task_start, dep_block.end_time)
-
-        for i, (free_start, free_end) in enumerate(free_intervals):
-            window_start = free_start
-            window_end = free_end
-
-            if effective_task_start:
-                window_start = max(
-                    free_start,
-                    effective_task_start,
-                )
-            if task.latest_end_time:
-                window_end = min(
-                    free_end,
-                    datetime.combine(day_start.date(), task.latest_end_time),
-                )
-
-            if window_end <= window_start:
-                continue
-
-            if window_end - window_start >= duration:
-                start_time = window_start
-                end_time = start_time + duration
-
-                # Ensure end_time + buffer does not go into another scheduled block
-                task_placable = True
-                if buffer > timedelta(0):
-                    for block in scheduled_blocks:
-                        if (
-                            block.start_time < end_time + buffer
-                            and block.end_time > end_time
-                        ):
-                            task_placable = False
-
-                if not task_placable:
-                    continue
-
-                placed_block = ScheduledBlock(
-                    id=task.id,
-                    title=task.title,
-                    start_time=start_time,
-                    end_time=end_time,
-                )
-                scheduled_blocks.append(placed_block)
-                scheduled_task_ids.add(task.id)
-                scheduled_blocks_map[task.id] = placed_block
-                remaining_tasks.remove(task)
-
-                # Update free intervals
-                new_intervals = []
-
-                # Before block
-                if free_start < start_time:
-                    new_intervals.append((free_start, start_time))
-
-                # Buffer interval
-                buffered_end = end_time + buffer
-
-                # After block
-                if buffered_end < free_end:
-                    new_intervals.append((buffered_end, free_end))
-
-                # Replace the current free interval with the new ones
-                free_intervals.pop(i)
-                free_intervals.extend(new_intervals)
-
-                # Keep intervals sorted
-                free_intervals.sort(key=lambda x: x[0])
-
-                placed = True
-                break
-
-        if not placed:
+        if placed_block:
+            scheduled_blocks.append(placed_block)
+            scheduled_task_ids.add(task.id)
+            scheduled_blocks_map[task.id] = placed_block
+        else:
             unscheduled_tasks.append(task)
-            remaining_tasks.remove(task)
+
+        remaining_tasks.remove(task)
 
     # Sort scheduled blocks by start time
     scheduled_blocks.sort(key=lambda block: block.start_time)
@@ -214,11 +144,11 @@ def _get_eligible_tasks(
 
 
 def _apply_event_blocking(
-    free_intervals: List[FreeInverval],
+    free_intervals: List[FreeInterval],
     events: List[Event],
     today_date,
     buffer: timedelta,
-) -> List[FreeInverval]:
+) -> List[FreeInterval]:
     # Block events and update free intervals
     events_sorted = sorted(events, key=lambda e: e.start)
     for event in events_sorted:
@@ -244,3 +174,87 @@ def _apply_event_blocking(
 
         free_intervals = sorted(new_intervals, key=lambda x: x[0])
     return free_intervals
+
+
+def _try_place_task(
+    task: Task,
+    free_intervals: List[FreeInterval],
+    scheduled_blocks: List[ScheduledBlock],
+    scheduled_blocks_map: Dict[int, ScheduledBlock],
+    day_start: datetime,
+    buffer: timedelta,
+) -> Optional[ScheduledBlock]:
+    duration = timedelta(minutes=task.duration_minutes)
+
+    effective_task_start = (
+        datetime.combine(day_start.date(), task.earliest_start_time)
+        if task.earliest_start_time
+        else day_start
+    )
+    for dep_id in task.depends_on:
+        if dep_id in scheduled_blocks_map:
+            dep_block = scheduled_blocks_map[dep_id]
+            effective_task_start = max(effective_task_start, dep_block.end_time)
+
+    for i, (free_start, free_end) in enumerate(free_intervals):
+        window_start = free_start
+        window_end = free_end
+
+        if effective_task_start:
+            window_start = max(
+                free_start,
+                effective_task_start,
+            )
+        if task.latest_end_time:
+            window_end = min(
+                free_end,
+                datetime.combine(day_start.date(), task.latest_end_time),
+            )
+
+        if window_end <= window_start:
+            continue
+
+        if window_end - window_start >= duration:
+            start_time = window_start
+            end_time = start_time + duration
+
+            # Ensure end_time + buffer does not go into another scheduled block
+            if buffer > timedelta(0):
+                for block in scheduled_blocks:
+                    if (
+                        block.start_time < end_time + buffer
+                        and block.end_time > end_time
+                    ):
+                        return None
+
+            placed_block = ScheduledBlock(
+                id=task.id,
+                title=task.title,
+                start_time=start_time,
+                end_time=end_time,
+            )
+
+            # Update free intervals
+            new_intervals = []
+
+            # Before block
+            if free_start < start_time:
+                new_intervals.append((free_start, start_time))
+
+            # Buffer interval
+            buffered_end = end_time + buffer
+
+            # After block
+            if buffered_end < free_end:
+                new_intervals.append((buffered_end, free_end))
+
+            # Replace the current free interval with the new ones
+            free_intervals.pop(i)
+            free_intervals.extend(new_intervals)
+
+            # Keep intervals sorted
+            free_intervals.sort(key=lambda x: x[0])
+
+            return placed_block
+
+    return None
