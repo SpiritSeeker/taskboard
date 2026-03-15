@@ -103,23 +103,9 @@ def generate_schedule(
         and (t.scheduled_date is None or t.scheduled_date <= today_date)
     ]
     while remaining_tasks:
-        eligible_tasks: List[Task] = []
-
-        for task in remaining_tasks:
-            deps = task.depends_on
-            blocked = False
-            for dep_id in deps:
-                dep_task = task_map.get(dep_id)
-
-                if not dep_task:
-                    continue
-
-                if not dep_task.is_completed and dep_id not in scheduled_task_ids:
-                    blocked = True
-                    break
-
-            if not blocked:
-                eligible_tasks.append(task)
+        eligible_tasks = _get_eligible_tasks(
+            remaining_tasks, task_map, scheduled_task_ids
+        )
 
         if not eligible_tasks:
             unscheduled_tasks.extend(remaining_tasks)
@@ -227,3 +213,26 @@ def generate_schedule(
     scheduled_blocks.sort(key=lambda block: block.start_time)
 
     return scheduled_blocks, unscheduled_tasks
+
+
+def _get_eligible_tasks(
+    remaining_tasks: List[Task], task_map: Dict[int, Task], scheduled_task_ids: Set[int]
+) -> List[Task]:
+    eligible_tasks: List[Task] = []
+
+    for task in remaining_tasks:
+        deps = task.depends_on
+        blocked = False
+        for dep_id in deps:
+            dep_task = task_map.get(dep_id)
+
+            if not dep_task:
+                continue
+
+            if not dep_task.is_completed and dep_id not in scheduled_task_ids:
+                blocked = True
+                break
+
+        if not blocked:
+            eligible_tasks.append(task)
+    return eligible_tasks
