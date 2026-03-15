@@ -197,13 +197,18 @@ def _try_place_task(
             end_time = start_time + duration
 
             # Ensure end_time + buffer does not go into another scheduled block
+            task_placable = True
             if buffer > timedelta(0):
                 for block in scheduled_blocks:
                     if (
                         block.start_time < end_time + buffer
                         and block.end_time > end_time
                     ):
-                        return None
+                        task_placable = False
+                        break
+
+            if not task_placable:
+                continue
 
             placed_block = ScheduledBlock(
                 id=task.id,
