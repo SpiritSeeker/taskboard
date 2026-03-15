@@ -17,7 +17,6 @@ def generate_schedule(
 ) -> Tuple[List[ScheduledBlock], List[Task]]:
     scheduled_blocks: List[ScheduledBlock] = []
     unscheduled_tasks: List[Task] = []
-    active_block = None
 
     task_map = {t.id: t for t in tasks}
     scheduled_task_ids: Set[int] = set()
@@ -26,44 +25,16 @@ def generate_schedule(
 
     today_date = day_start.date()
 
-    # Detect active task
-    active_tasks = [
-        task
-        for task in tasks
-        if getattr(task, "active_session_start", None) is not None
-    ]
-    if active_tasks:
-        active_task = active_tasks[0]
-        assert active_task.active_session_start is not None
-        active_task_end_estimated = active_task.active_session_start + timedelta(
-            minutes=active_task.duration_minutes
-        )
-        # If the active task end time is in the past, the active task end time is now
-        if active_task_end_estimated < datetime.now():
-            active_task_end_estimated = datetime.now()
-
-        # Bump the active_task_end_estimated to next multiple of buffer_minutes if buffer is set
-        if buffer_minutes > 0:
-            buffer_td = timedelta(minutes=buffer_minutes)
-            active_task_end_estimated += (
-                buffer_td - (active_task_end_estimated - datetime.min) % buffer_td
-            ) % buffer_td
-            day_start = max(day_start, active_task_end_estimated + buffer_td)
-        else:
-            day_start = max(day_start, active_task_end_estimated)
-
-        active_block = ScheduledBlock(
-            id=active_task.id,
-            title=active_task.title + " (IN PROGRESS)",
-            start_time=active_task.active_session_start,
-            end_time=active_task_end_estimated,
-        )
-        scheduled_blocks.append(active_block)
-
-        # Remove active task from scheduling pool
-        remaining_tasks = [t for t in remaining_tasks if t.id != active_task.id]
-        scheduled_task_ids.add(active_task.id)
-        scheduled_blocks_map[active_task.id] = active_block
+    # Remove active task from scheduling pool and add it as a scheduled block
+    _handle_active_task(
+        tasks,
+        scheduled_blocks,
+        scheduled_blocks_map,
+        scheduled_task_ids,
+        remaining_tasks,
+        day_start,
+        buffer_minutes,
+    )
 
     # Initial free interval
     free_intervals: List[FreeInterval] = [(day_start, day_end)]
@@ -258,3 +229,52 @@ def _try_place_task(
             return placed_block
 
     return None
+
+
+def _handle_active_task(
+    tasks: List[Task],
+    scheduled_blocks: List[ScheduledBlock],
+    scheduled_blocks_map: Dict[int, ScheduledBlock],
+    scheduled_task_ids: Set[int],
+    remaining_tasks: List[Task],
+    day_start: datetime,
+    buffer_minutes: int,
+) -> None:
+    # Detect active task
+    active_tasks = [
+        task
+        for task in tasks
+        if getattr(task, "active_session_start", None) is not None
+    ]
+    if active_tasks:
+        active_task = active_tasks[0]
+        assert active_task.active_session_start is not None
+        active_task_end_estimated = active_task.active_session_start + timedelta(
+            minutes=active_task.duration_minutes
+        )
+        # If the active task end time is in the past, the active task end time is now
+        if active_task_end_estimated < datetime.now():
+            active_task_end_estimated = datetime.now()
+
+        # Bump the active_task_end_estimated to next multiple of buffer_minutes if buffer is set
+        if buffer_minutes > 0:
+            buffer_td = timedelta(minutes=buffer_minutes)
+            active_task_end_estimated += (
+                buffer_td - (active_task_end_estimated - datetime.min) % buffer_td
+            ) % buffer_td
+            day_start = max(day_start, active_task_end_estimated + buffer_td)
+        else:
+            day_start = max(day_start, active_task_end_estimated)
+
+        active_block = ScheduledBlock(
+            id=active_task.id,
+            title=active_task.title + " (IN PROGRESS)",
+            start_time=active_task.active_session_start,
+            end_time=active_task_end_estimated,
+        )
+        scheduled_blocks.append(active_block)
+
+        # Remove active task from scheduling pool
+        remaining_tasks.remove(active_task)
+        scheduled_task_ids.add(active_task.id)
+        scheduled_blocks_map[active_task.id] = active_block
